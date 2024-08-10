@@ -1,6 +1,7 @@
 #include "mpu6050.h"
 #include "unity.h"
-
+#include "freertos/FreeRTOS.h"
+#include "driver/i2c.h"
 
 #ifdef __cplusplus
 extern "C" {

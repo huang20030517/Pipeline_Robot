@@ -5,212 +5,163 @@
 
 #include "driver/timer.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/task.h"  
-#include "driver/ledc.h"
-#include "driver/mcpwm.h"
+#include "freertos/task.h"
 #include "soc/mcpwm_struct.h"
 #include "driver/gpio.h"
 
+#define SERVO_TIMER LEDC_TIMER_0
+#define SEROV_CHANNEL LEDC_CHANNEL_0
+#define SERVO_MAX_PULSE_WIDTH_US 2500 // 最大脉宽
+#define SERVO_MIN_PULSE_WIDTH_US 500  // 最小脉宽
+
+#define DC0_TIMER LEDC_TIMER_1
+
+#define DC0_FREQ_HZ 30 * 1000
+
+#define DC1_TIMER LEDC_TIMER_1
+#define DC1_FREQ_HZ 30 * 1000
+#define DC1_CHANNEL LEDC_CHANNEL_2
 
 void pwm_init(void)
 {
-    // Prepare and then apply the LEDC PWM timer configuration
-    // ledc_timer_config_t ledc_timer = {
-    //     .speed_mode       = LEDC_MODE,
-    //     .timer_num        = LEDC_TIMER,
-    //     .duty_resolution  = LEDC_DUTY_RES,
-    //     .freq_hz          = LEDC_FREQUENCY,  // Set output frequency at 4 kHz
-    //     .clk_cfg          = LEDC_AUTO_CLK
-    // };
-    // ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
 
-    // // Prepare and then apply the LEDC PWM channel configuration
-    // ledc_channel_config_t ledc_channel = {
-    //     .speed_mode     = LEDC_MODE,
-    //     .channel        = LEDC_CHANNEL_0,
-    //     .timer_sel      = LEDC_TIMER,
-    //     .intr_type      = LEDC_INTR_DISABLE,
-    //     .gpio_num       = LEDC_OUTPUT_IO,
-    //     .duty           = 0, // Set duty to 0%
-    //     .hpoint         = 0
-    // };
-    // ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
-    // ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0));
-    // ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0));
-
-    // 步进电机1 
-    ledc_channel_config_t stepper1_channel = {
-        .channel    = LEDC_CHANNEL_0,
-        .duty       = 0,
-        .gpio_num   = M1_STEP_GPIO,
+    // 舵机
+    ledc_timer_config_t servo_timer = {
         .speed_mode = LEDC_LOW_SPEED_MODE,
-        .hpoint     = 0,
-        .timer_sel  = LEDC_TIMER_0
-    };
-    ledc_channel_config(&stepper1_channel);
+        .duty_resolution = LEDC_TIMER_14_BIT,
+        .timer_num = SERVO_TIMER,
+        .freq_hz = SERVO_FREQ_HZ,
+        .clk_cfg = LEDC_AUTO_CLK};
+    ESP_ERROR_CHECK(ledc_timer_config(&servo_timer));
 
-    ledc_timer_config_t stepper1_timer = {
-        .duty_resolution = LEDC_TIMER_8_BIT, // 分辨率 8 位
-        .freq_hz         = 2000,           
-        .speed_mode      = LEDC_LOW_SPEED_MODE,
-        .timer_num       = LEDC_TIMER_0
-    };
-    ledc_timer_config(&stepper1_timer); 
-    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0));
-    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0));
-
-
-    // 步进电机3
-    ledc_channel_config_t stepper2_channel = {
-        .channel    = LEDC_CHANNEL_1,
-        .duty       = 0,
-        .gpio_num   = M3_STEP_GPIO,
+    ledc_channel_config_t servo_channel = {
         .speed_mode = LEDC_LOW_SPEED_MODE,
-        .hpoint     = 0,
-        .timer_sel  = LEDC_TIMER_0
-    };
-    ledc_channel_config(&stepper2_channel);
+        .channel = SEROV_CHANNEL,
+        .timer_sel = SERVO_TIMER,
+        .intr_type = LEDC_INTR_DISABLE,
+        .gpio_num = SERVO_GPIO,
+        .duty = 0,
+        .hpoint = 0};
+    ESP_ERROR_CHECK(ledc_channel_config(&servo_channel));
 
-    ledc_timer_config_t stepper2_timer = {
-        .duty_resolution = LEDC_TIMER_8_BIT, // 分辨率 8 位
-        .freq_hz         = 2000,           
-        .speed_mode      = LEDC_LOW_SPEED_MODE,
-        .timer_num       = LEDC_TIMER_0
-    };
-    ledc_timer_config(&stepper2_timer); 
-    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0));
-    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1));
+    ESP_ERROR_CHECK((ledc_stop(LEDC_LOW_SPEED_MODE, SEROV_CHANNEL, 0)));
 
-    // 
-    gpio_config_t io_conf = {
-        .pin_bit_mask =  (1ull << M1_DIR_GPIO) | (1ull << M1_ENN_GPIO) | (1ull << M3_DIR_GPIO) | (1ull << M3_ENN_GPIO),
+    // 直流电机
+    gpio_config_t DC_conf = {
+        .intr_type = GPIO_INTR_DISABLE,
         .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pin_bit_mask = ((1ULL << DC0_GPIO_PH) | (1ULL << DC1_GPIO_PH)),
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE
-    };
-    gpio_config(&io_conf);
+        .pull_up_en = GPIO_PULLUP_DISABLE};
 
+    ESP_ERROR_CHECK(gpio_config(&DC_conf));
 
-    // 直流电机的初始
-    // MCPWM 定时器 0 配置
-    mcpwm_config_t pwm_config_0 = {
-        .frequency = 10000, 
-        .cmpr_a = 0,          // A相占空比初始为 0%
-        .cmpr_b = 0,          // B相占空比初始为 0%
-        .duty_mode = MCPWM_DUTY_MODE_0, // 正常模式
-        .counter_mode = MCPWM_UP_COUNTER  // 向上计数模式
-    };
-    
-    // MCPWM 定时器 1 配置 
-    mcpwm_config_t pwm_config_1 = {
-        .frequency = 10000, 
-        .cmpr_a = 0,          // A相占空比初始为 0%
-        .cmpr_b = 0,          // B相占空比初始为 0%
-        .duty_mode = MCPWM_DUTY_MODE_0, // 正常模式
-        .counter_mode = MCPWM_UP_COUNTER  // 向上计数模式
-    };
+    // DC0
+    ledc_timer_config_t DC0_tiner = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .duty_resolution = LEDC_TIMER_11_BIT,
+        .timer_num = DC0_TIMER,
+        .freq_hz = DC0_FREQ_HZ,
+        .clk_cfg = LEDC_AUTO_CLK};
+    ESP_ERROR_CHECK(ledc_timer_config(&DC0_tiner));
 
-    // MCPWM 引脚配置
-    mcpwm_pin_config_t mcpwm_pins = {
-        .mcpwm0a_out_num = 14,
-        .mcpwm0b_out_num = 13,
-        .mcpwm1a_out_num = 42,
-        .mcpwm1b_out_num = 41
-    };
+    ledc_channel_config_t DC0_config = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel = DC0_CHANNEL,
+        .timer_sel = DC0_TIMER,
+        .intr_type = LEDC_INTR_DISABLE,
+        .gpio_num = DC0_GPIO_EN,
+        .duty = 0,
+        .hpoint = 0};
+    ESP_ERROR_CHECK(ledc_channel_config(&DC0_config));
 
-    ESP_ERROR_CHECK(mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_0, &pwm_config_0));
-    ESP_ERROR_CHECK(mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_1, &pwm_config_1));
+    // DC1
+    ledc_timer_config_t DC1_tiner = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .duty_resolution = LEDC_TIMER_11_BIT,
+        .timer_num = DC1_TIMER,
+        .freq_hz = DC1_FREQ_HZ,
+        .clk_cfg = LEDC_AUTO_CLK};
+    ESP_ERROR_CHECK(ledc_timer_config(&DC1_tiner));
 
-    // 配置 MCPWM 引脚
-    ESP_ERROR_CHECK(mcpwm_set_pin(MCPWM_UNIT_0, &mcpwm_pins));
-    ESP_ERROR_CHECK(mcpwm_start(MCPWM_UNIT_0, MCPWM_TIMER_0));
-    ESP_ERROR_CHECK(mcpwm_start(MCPWM_UNIT_0, MCPWM_TIMER_1)); 
+    ledc_channel_config_t DC1_config = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel = DC1_CHANNEL,
+        .timer_sel = DC1_TIMER,
+        .intr_type = LEDC_INTR_DISABLE,
+        .gpio_num = DC1_GPIO_EN,
+        .duty = 0,
+        .hpoint = 0};
+    ESP_ERROR_CHECK(ledc_channel_config(&DC1_config));
 
+    ESP_ERROR_CHECK((ledc_stop(LEDC_LOW_SPEED_MODE, DC0_CHANNEL, 0)));
+    ESP_ERROR_CHECK((ledc_stop(LEDC_LOW_SPEED_MODE, DC1_CHANNEL, 0)));
 }
 
-
-void control_Pitch_motor(float angle)
+static inline uint8_t clamp(uint8_t value, uint8_t min, uint8_t max)
 {
-    static const char *TAG = "电机控制";
-
-    // 计算需要的步数
-    int steps = (int)((angle / 360.0) * 16000);
-    // 设置方向
-    // ESP_LOGI(TAG, "angle : %0.2f    steps : %d", angle,  steps);
-    if (angle >= 0) {
-        gpio_set_level(M3_DIR_GPIO, 1); // 正方向
-    } else {
-        gpio_set_level(M3_DIR_GPIO, 0); // 反方向
-    }
-    // 生成脉冲信号,驱动步进电机转动到指定角度
-    for (int i = 0; i < abs(steps); i++)
-    {
-        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 128); // 50% 占空比
-        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
-        vTaskDelay(pdMS_TO_TICKS(1)); 
-    }
-    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0); // 关闭脉冲
-    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
+    return (value < min) ? min : (value > max) ? max
+                                               : value;
 }
 
-void control_gimbal_motor(float angle)
+void set_motor_speed_and_direction(int16_t left_speed, int16_t right_speed)
 {
-    static const char *TAG = "电机控制";
-
-    // 计算需要的步数
-    int steps = (int)((angle / 360.0) * 16000);
-    // 设置方向
-    // ESP_LOGI(TAG, "angle : %0.2f    steps : %d", angle,  steps);
-    if (angle >= 0) {
-        gpio_set_level(M1_DIR_GPIO, 1); // 正方向
-    } else {
-        gpio_set_level(M1_DIR_GPIO, 0); // 反方向
-    }
-    // 生成脉冲信号,驱动步进电机转动到指定角度
-    for (int i = 0; i < abs(steps); i++)
+    // 右轮控制
+    if (right_speed >= 0)
     {
-        ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 128); // 50% 占空比
-        ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
-        vTaskDelay(pdMS_TO_TICKS(1)); 
+        gpio_set_level(DC0_GPIO_PH, 1); // 设置右轮前进
     }
-    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0); // 关闭脉冲
-    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+    else
+    {
+        gpio_set_level(DC0_GPIO_PH, 0); // 设置右轮后退
+        right_speed = -right_speed;     // 取绝对值
+    }
+
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, DC0_CHANNEL, right_speed)); // 设置 PWM 占空比
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, DC0_CHANNEL));
+
+    // 左轮控制
+    if (left_speed >= 0)
+    {
+        gpio_set_level(DC1_GPIO_PH, 1); // 设置左轮前进
+    }
+    else
+    {
+        gpio_set_level(DC1_GPIO_PH, 0); // 设置左轮后退
+        left_speed = -left_speed;       // 取绝对值
+    }
+
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, DC1_CHANNEL, left_speed)); // 设置 PWM 占空比
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, DC1_CHANNEL));
 }
 
+// 设置舵机角度的函数
+void set_servo_angle(uint8_t angle)
+{
+    angle = clamp(angle, 0, 180);
+
+    // 计算对应的脉宽
+    uint32_t pulse_width_us = SERVO_MIN_PULSE_WIDTH_US + (SERVO_MAX_PULSE_WIDTH_US - SERVO_MIN_PULSE_WIDTH_US) * angle / 180;
+
+    // 计算 PWM 占空比
+    uint32_t duty = (pulse_width_us * (1 << LEDC_TIMER_14_BIT)) / (1000000 / SERVO_FREQ_HZ);
+
+    // 如果 PWM 输出反向，调整占空比
+    uint32_t max_duty = (1 << LEDC_TIMER_14_BIT) - 1;
+    uint32_t reversed_duty = max_duty - duty;
+
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, SEROV_CHANNEL, reversed_duty));
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, SEROV_CHANNEL));
+}
 
 void set_motor_direction(float x, float y)
 {
-    static const char *TAG = "电机控制";
 
-    // 计算左右电机的目标速度
     float left_wheel_velocity = y + x;
     float right_wheel_velocity = y - x;
 
-    left_wheel_velocity = fmax(-1000.0f, fmin(1000.f, left_wheel_velocity * 200.0f));
-    right_wheel_velocity = fmax(-1000.0f, fmin(1000.f, right_wheel_velocity * 200.0f));
-    
-    // ESP_LOGI(TAG, "left : %0.3f, right : %0.3f", left_wheel_velocity, right_wheel_velocity);
+    left_wheel_velocity = fmax(-2047.0f, fmin(2047.f, left_wheel_velocity * 2047.0f));
+    right_wheel_velocity = fmax(-2047.0f, fmin(2047.f, right_wheel_velocity * 2047.0f));
 
-    if (left_wheel_velocity >= 0)
-    {
-        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, left_wheel_velocity);
-        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_B, 0);
-    }
-    else
-    {
-        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 0);
-        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_B, -left_wheel_velocity);
-    }
-
-    if (right_wheel_velocity >= 0)
-    {
-        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, right_wheel_velocity);
-        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_B, 0);
-    }
-    else
-    {
-        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 0);
-        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_B, -right_wheel_velocity);
-    }
+    set_motor_speed_and_direction(left_wheel_velocity, right_wheel_velocity);
 }

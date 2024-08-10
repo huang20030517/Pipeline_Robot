@@ -1,111 +1,69 @@
 #include "periphs/encoder.h"
-#include "driver/gpio.h"
-#include "stdio.h"
-#include "esp_log.h"
-#include "driver/pulse_cnt.h"
-#include "driver/gpio.h"
-#include "driver/pulse_cnt.h"
-#include "driver/gpio.h"
-#include "esp_sleep.h"
 
-// // 编码器1引脚定义
-// #define ENCODER1_A_GPIO GPIO_NUM_35
-// #define ENCODER1_B_GPIO GPIO_NUM_36
+// 减速比: 1030
+// 脉冲每圈 (PPR): 7
 
-// // 编码器2引脚定义
-// #define ENCODER2_A_GPIO GPIO_NUM_37
-// #define ENCODER2_B_GPIO GPIO_NUM_38
+// 编码器 GPIO 定义
+#define ENCODER1_A_GPIO 12
+#define ENCODER1_B_GPIO 11
+#define ENCODER2_A_GPIO 13
+#define ENCODER2_B_GPIO 14
 
-// #define EXAMPLE_PCNT_HIGH_LIMIT 100
-// #define EXAMPLE_PCNT_LOW_LIMIT  -100
-
-static const char *TAG = "example";
-
-// void example_pcnt_on_reach(pcnt_unit_handle_t pcnt_unit, const pcnt_watch_event_data_t *edata, void *user_ctx)
-// {
-//     int value;
-//     if (xQueueSendFromISR(user_ctx, &edata->watch_point_value, NULL) != pdTRUE) {
-//     }
-// }
+// PCNT 配置
+#define PCNT_CHANNEL1 PCNT_CHANNEL_0
+#define PCNT_CHANNEL2 PCNT_CHANNEL_1
 
 void encoder_init(void)
 {
-    // 初始化两个PCNT(脉冲计数)单元:
-//    pcnt_unit_config_t unit_config = {
-//     .high_limit = EXAMPLE_PCNT_HIGH_LIMIT,
-//     .low_limit = EXAMPLE_PCNT_LOW_LIMIT,
-//     };
-//     pcnt_unit_handle_t pcnt_unit_1 = NULL, pcnt_unit_2 = NULL;
-//     ESP_ERROR_CHECK(pcnt_new_unit(&unit_config, &pcnt_unit_1));
-//     ESP_ERROR_CHECK(pcnt_new_unit(&unit_config, &pcnt_unit_2));
 
-//     // 配置两个编码器的通道:
-//     pcnt_chan_config_t chan_a_config = {
-//     .edge_gpio_num = ENCODER1_A_GPIO,
-//     .level_gpio_num = ENCODER1_B_GPIO,
-//     };
-//     pcnt_channel_handle_t pcnt_chan_a = NULL;
-//     ESP_ERROR_CHECK(pcnt_new_channel(pcnt_unit_1, &chan_a_config, &pcnt_chan_a));
-//     pcnt_chan_config_t chan_b_config = {
-//         .edge_gpio_num = ENCODER1_B_GPIO,
-//         .level_gpio_num = ENCODER1_A_GPIO,
-//     };
-//     pcnt_channel_handle_t pcnt_chan_b = NULL;
-//     ESP_ERROR_CHECK(pcnt_new_channel(pcnt_unit_1, &chan_b_config, &pcnt_chan_b));
+    gpio_pullup_en(ENCODER1_A_GPIO);
+    gpio_pullup_en(ENCODER1_B_GPIO);
 
-//     // 配置编码器2的通道
-//     pcnt_chan_config_t chan_c_config = {
-//         .edge_gpio_num = ENCODER2_A_GPIO,
-//         .level_gpio_num = ENCODER2_B_GPIO,
-//     };
-//     pcnt_channel_handle_t pcnt_chan_c = NULL;
-//     ESP_ERROR_CHECK(pcnt_new_channel(pcnt_unit_2, &chan_c_config, &pcnt_chan_c));
-//     pcnt_chan_config_t chan_d_config = {
-//         .edge_gpio_num = ENCODER2_B_GPIO,
-//         .level_gpio_num = ENCODER2_A_GPIO,
-//     };
-//     pcnt_channel_handle_t pcnt_chan_d = NULL;
-//     ESP_ERROR_CHECK(pcnt_new_channel(pcnt_unit_2, &chan_d_config, &pcnt_chan_d));
+    gpio_pullup_en(ENCODER2_A_GPIO);
+    gpio_pullup_en(ENCODER2_B_GPIO);
 
-//     // 设置两个编码器的边沿和电平动作:
-//     // 设置编码器1的动作
-//     ESP_ERROR_CHECK(pcnt_channel_set_edge_action(pcnt_chan_a, PCNT_CHANNEL_EDGE_ACTION_DECREASE, PCNT_CHANNEL_EDGE_ACTION_INCREASE));
-//     ESP_ERROR_CHECK(pcnt_channel_set_level_action(pcnt_chan_a, PCNT_CHANNEL_LEVEL_ACTION_KEEP, PCNT_CHANNEL_LEVEL_ACTION_INVERSE));
-//     ESP_ERROR_CHECK(pcnt_channel_set_edge_action(pcnt_chan_b, PCNT_CHANNEL_EDGE_ACTION_INCREASE, PCNT_CHANNEL_EDGE_ACTION_DECREASE));
-//     ESP_ERROR_CHECK(pcnt_channel_set_level_action(pcnt_chan_b, PCNT_CHANNEL_LEVEL_ACTION_KEEP, PCNT_CHANNEL_LEVEL_ACTION_INVERSE));
+    // 配置第一个编码器的PCNT单元
+    pcnt_config_t pcnt_config0 = {
+        .pulse_gpio_num = ENCODER1_A_GPIO,
+        .ctrl_gpio_num = ENCODER1_B_GPIO,
+        .channel = PCNT_CHANNEL_0,
+        .unit = PCNT_UNIT_0,
+        .pos_mode = PCNT_COUNT_INC, // 正转脉冲增加计数
+        .neg_mode = PCNT_COUNT_DEC, // 反转脉冲减少计数
+        .lctrl_mode = PCNT_MODE_REVERSE,
+        .hctrl_mode = PCNT_MODE_KEEP,
+        .counter_h_lim = COUNTER_MAX_LIMIT,  // 设置计数上限为每转脉冲数
+        .counter_l_lim = COUNTER_MIN_LIMIT, // 设置计数下限为负的每转脉冲数
+    };
+    pcnt_unit_config(&pcnt_config0);
 
-//     // 设置编码器2的动作
-//     ESP_ERROR_CHECK(pcnt_channel_set_edge_action(pcnt_chan_c, PCNT_CHANNEL_EDGE_ACTION_DECREASE, PCNT_CHANNEL_EDGE_ACTION_INCREASE));
-//     ESP_ERROR_CHECK(pcnt_channel_set_level_action(pcnt_chan_c, PCNT_CHANNEL_LEVEL_ACTION_KEEP, PCNT_CHANNEL_LEVEL_ACTION_INVERSE));
-//     ESP_ERROR_CHECK(pcnt_channel_set_edge_action(pcnt_chan_d, PCNT_CHANNEL_EDGE_ACTION_INCREASE, PCNT_CHANNEL_EDGE_ACTION_DECREASE));
-//     ESP_ERROR_CHECK(pcnt_channel_set_level_action(pcnt_chan_d, PCNT_CHANNEL_LEVEL_ACTION_KEEP, PCNT_CHANNEL_LEVEL_ACTION_INVERSE));
+    pcnt_config_t pcnt_config1 = {
+        .pulse_gpio_num = ENCODER2_A_GPIO,
+        .ctrl_gpio_num = ENCODER2_B_GPIO,
+        .channel = PCNT_CHANNEL2,
+        .unit = PCNT_UNIT_1,
+        .pos_mode = PCNT_COUNT_INC,
+        .neg_mode = PCNT_COUNT_DEC,
+        .lctrl_mode = PCNT_MODE_REVERSE,
+        .hctrl_mode = PCNT_MODE_KEEP,
+        .counter_h_lim = COUNTER_MAX_LIMIT,  // 设置计数上限为每转脉冲数
+        .counter_l_lim = COUNTER_MIN_LIMIT, // 设置计数下限为负的每转脉冲数
+    };
+    pcnt_unit_config(&pcnt_config1);
 
-//     // 添加监视点和注册回调函数
-//     ESP_LOGI(TAG, "add watch points and register callbacks");
-//     int watch_points[] = {EXAMPLE_PCNT_LOW_LIMIT, -50, 0, 50, EXAMPLE_PCNT_HIGH_LIMIT};
-//     for (size_t i = 0; i < sizeof(watch_points) / sizeof(watch_points[0]); i++) {
-//         ESP_ERROR_CHECK(pcnt_unit_add_watch_point(pcnt_unit_1, watch_points[i]));
-//         ESP_ERROR_CHECK(pcnt_unit_add_watch_point(pcnt_unit_2, watch_points[i]));
-//     }
+    // 设置并启用滤波器
+    pcnt_set_filter_value(PCNT_UNIT_0, 200); // 增加滤波器值
+    pcnt_filter_enable(PCNT_UNIT_0);
 
-//        // 为两个PCNT单元注册事件回调函数
-//     pcnt_event_callbacks_t cbs = {
-//         .on_reach = example_pcnt_on_reach,
-//     };
-//     QueueHandle_t queue = xQueueCreate(10, sizeof(int));
-//     ESP_ERROR_CHECK(pcnt_unit_register_event_callbacks(pcnt_unit_1, &cbs, queue));
-//     ESP_ERROR_CHECK(pcnt_unit_register_event_callbacks(pcnt_unit_2, &cbs, queue));
+    pcnt_set_filter_value(PCNT_UNIT_1, 200); // 增加滤波器值
+    pcnt_filter_enable(PCNT_UNIT_1);
 
-//     // 启用、清零并启动两个PCNT单元
-//     ESP_LOGI(TAG, "enable pcnt units");
-//     ESP_ERROR_CHECK(pcnt_unit_enable(pcnt_unit_1));
-//     ESP_ERROR_CHECK(pcnt_unit_enable(pcnt_unit_2));
+    // 启动 PCNT 计数器
+    pcnt_counter_pause(PCNT_UNIT_0);
+    pcnt_counter_clear(PCNT_UNIT_0);
+    pcnt_counter_resume(PCNT_UNIT_0);
 
-//     ESP_LOGI(TAG, "clear pcnt units");
-//     ESP_ERROR_CHECK(pcnt_unit_clear_count(pcnt_unit_1));
-//     ESP_ERROR_CHECK(pcnt_unit_clear_count(pcnt_unit_2));
-
-//     ESP_LOGI(TAG, "start pcnt units");
-//     ESP_ERROR_CHECK(pcnt_unit_start(pcnt_unit_1));
-//     ESP_ERROR_CHECK(pcnt_unit_start(pcnt_unit_2));
-} 
+    pcnt_counter_pause(PCNT_UNIT_1);
+    pcnt_counter_clear(PCNT_UNIT_1);
+    pcnt_counter_resume(PCNT_UNIT_1);
+}

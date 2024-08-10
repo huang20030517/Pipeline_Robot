@@ -4,147 +4,124 @@
  * SPDX-License-Identifier: Unlicense OR CC0-1.0
  */
 
-#include <stdint.h>
-#include <stdio.h>
+#include "stdint.h"
+#include "stdio.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
 #include "led_strip.h"
-#include "driver/gpio.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "driver/i2c.h"
 
 #include "periphs/mpu6050_driver.c"
 #include "periphs/usb.h"
 #include "periphs/pwm.h"
-#include "periphs/can.h"
 #include "periphs/encoder.h"
-#include "periphs/led.h"
 
 
-QueueHandle_t encoder_event_queue;
-static NormalizedRemoteControlData_t RC_Normalized_data; 
-RC_t rc_data;
+NormalizedRemoteControlData_t RC_Normalized_data = {0, 0, 0};
+RC_t rc_data = {127, 127, 20};
 
-#define BLINK_GPIO 48
-
-#ifdef CONFIG_BLINK_LED_STRIP
-
-static led_strip_handle_t led_strip;
-
-static void blink_led(void)
+void mpu6050_read_task(void *parameters)
 {
-    if(rc_data.led_brightness > 0 )
+
+    // i2c_sensor_mpu6050_init();
+
+    while(1)
     {
-        led_strip_set_pixel(led_strip, 0, rc_data.led_brightness, rc_data.led_brightness, rc_data.led_brightness);
-        
-        led_strip_refresh(led_strip);
-        
-    } else
-    {
-        led_strip_clear(led_strip);
+
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
-    
 }
-
-static void configure_led(void)
+void encoder_read_task(void *parameters)
 {
-    
-    /* LED strip initialization with the GPIO and pixels number*/
-    led_strip_config_t strip_config = {
-        .strip_gpio_num = BLINK_GPIO,
-        .max_leds = 1, // at least one LED on board
-    };
-#if CONFIG_BLINK_LED_STRIP_BACKEND_RMT
-    led_strip_rmt_config_t rmt_config = {
-        .resolution_hz = 10 * 1000 * 1000, // 10MHz
-        .flags.with_dma = false,
-    };
-    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
-#elif CONFIG_BLINK_LED_STRIP_BACKEND_SPI
-    led_strip_spi_config_t spi_config = {
-        .spi_bus = SPI2_HOST,
-        .flags.with_dma = true,
-    };
-    ESP_ERROR_CHECK(led_strip_new_spi_device(&strip_config, &spi_config, &led_strip));
-#else
-#error "unsupported LED strip backend"
-#endif
-    /* Set all LED off to clear all pixels */
-    led_strip_clear(led_strip);
-}
+    encoder_init();
 
-#elif CONFIG_BLINK_LED_GPIO
-
-static void blink_led(void)
-{
-    /* Set the GPIO level according to the state (LOW or HIGH)*/
-    gpio_set_level(BLINK_GPIO, s_led_state);
-}
-
-static void configure_led(void)
-{
-    ESP_LOGI(TAG, "Example configured to blink GPIO LED!");
-    gpio_reset_pin(BLINK_GPIO);
-    /* Set the GPIO as a push/pull output */
-    gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
-}
-
-#else
-#error "unsupported LED type"
-#endif
-
-
-
-void motor_control_task(void *parameters)
-{
-    
-    gpio_set_level(M1_ENN_GPIO, 0);
-    gpio_set_level(M3_ENN_GPIO, 0);
+    // 初始化计数器和速度变量
+    int16_t count_prev[2] = {0, 0};
+    int16_t count[2] = {0, 0};
+    int16_t delta[2] = {0, 0};
+    float linear_speed[2] = {0, 0};
 
     while (1)
     {
-        blink_led();
-        // 控制电机
-        control_gimbal_motor(-(RC_Normalized_data.rightX * 10));
-        control_Pitch_motor(RC_Normalized_data.rightY * 5);
-        set_motor_direction(RC_Normalized_data.leftX, RC_Normalized_data.leftY);
-        vTaskDelay(1);
+        // 获取计数器值
+        pcnt_get_counter_value(PCNT_UNIT_0, &count[0]);
+        pcnt_get_counter_value(PCNT_UNIT_1, &count[1]);
 
+        for (int i = 0; i < 2; ++i)
+        {
+            delta[i] = count[i] - count_prev[i];
+
+            // 处理计数器回绕情况
+            if (delta[i] > (COUNTER_MAX_LIMIT / 2))
+            {
+                delta[i] -= COUNTER_MAX_LIMIT;
+            }
+            else if (delta[i] < -(COUNTER_MAX_LIMIT / 2))
+            { 
+                delta[i] += COUNTER_MAX_LIMIT;
+            }    
+            count_prev[i] = count[i];
+
+            // 计算转速 (RPM)
+            float speed = (delta[i] * 60.0f) / 14420.0f;
+
+            // 计算线速度 (cm/s)
+            linear_speed[i] = speed * 74.45592f / 60.0f;
+            // 打印速度和线速度
+            // printf("Encoder %d - RPM: %.2f, Linear Speed: %.2f cm/s\n", i, speed, linear_speed[i]);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+void motor_control_task(void *parameters)
+{
+    pwm_init();
+
+    while (1)
+    {
+
+        set_servo_angle(RC_Normalized_data.Pitch);
+        set_motor_direction(RC_Normalized_data.leftX, RC_Normalized_data.leftY);
+
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
 void app_main(void)
 {
-    static const char *TAG = "USB";
-    
-
     init_usb_device();
-    pwm_init();
-    configure_led();
 
-    // can_init(void);
-    
     // 创建消息队列
     app_queue = xQueueCreate(5, sizeof(app_message_t));
     assert(app_queue);
 
     // xTaskCreate(usb_data_task, "USB task", 4096, NULL, 5, NULL);
-    xTaskCreate(motor_control_task, "motor control task", 8192, NULL, 5, NULL);
 
+    xTaskCreate(motor_control_task, "motor control task", 8192, NULL, 5, NULL);
+    xTaskCreate(encoder_read_task, "encoder read task", 4096, NULL, 4, NULL);
+    xTaskCreate(mpu6050_read_task, "mpu6050 read task", 8192, NULL, 4, NULL);
+    
     while (1)
     {
-        if (xQueueReceive(app_queue, &msg, portMAX_DELAY)) {
-            if (msg.buf_len) {
+        if (xQueueReceive(app_queue, &msg, portMAX_DELAY))
+        {
+            if (msg.buf_len)
+            {
                 memcpy(&rc_data, msg.buf, sizeof(RC_t));
-                // ESP_LOG_BUFFER_HEXDUMP(TAG, msg.buf, msg.buf_len, ESP_LOG_INFO);
+                // ESP_LOG_BUFFER_HEXDUMP("usb", msg.buf, msg.buf_len, ESP_LOG_INFO);
 
-                RC_Normalized_data.leftX = (rc_data.ch0 - 127.0) / (255.0 - 127.0);
-                RC_Normalized_data.leftY = (rc_data.ch1 - 127.0) / (255.0 - 127.0);
+                // 归一化处理
+                RC_Normalized_data.leftX = (rc_data.ch0 - 127.0) / (254.0 - 127.0);
+                RC_Normalized_data.leftY = (rc_data.ch1 - 127.0) / (254.0 - 127.0);
+                RC_Normalized_data.Pitch = rc_data.Pitch;
 
-                RC_Normalized_data.rightX = (rc_data.ch2 - 127.0) / (255.0 - 127.0);
-                RC_Normalized_data.rightY = (rc_data.ch3 - 127.0) / (255.0 - 127.0);
+                // printf("x: %.2f     y: %.2f     Pitch: %d\r\n", RC_Normalized_data.leftX, RC_Normalized_data.leftY, rc_data.Pitch);
             }
         }
         vTaskDelay(1);

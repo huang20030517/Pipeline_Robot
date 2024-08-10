@@ -1,39 +1,38 @@
+#include <stdint.h>
 
-
+#include "driver/ledc.h"
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
+// 舵机 500 2500us
 
-// #define LEDC_TIMER              LEDC_TIMER_0
-// #define LEDC_MODE               LEDC_LOW_SPEED_MODE
-// #define LEDC_OUTPUT_IO          (5) // Define the output GPIO
-// #define LEDC_DUTY_RES           LEDC_TIMER_8_BIT 
-// #define LEDC_DUTY               (4000) 
-// #define LEDC_FREQUENCY          (4000) 
+// 舵机最小角度
+#define SERVO_MIN_ANGLE -20
+// 舵机最大角度
+#define SERVO_MAX_ANGLE 50
 
-// 步进电机1
-#define M1_ENN_GPIO GPIO_NUM_4      // 使能引脚 
-#define M1_STEP_GPIO GPIO_NUM_1     // 驱动引脚
-#define M1_DIR_GPIO GPIO_NUM_2      // 方向引脚
+#define SERVO_GPIO 35    // 连接舵机的 GPIO 引脚
+#define SERVO_FREQ_HZ 50 // 舵机控制频率 50Hz
 
-// 步进电机3
-#define M3_ENN_GPIO GPIO_NUM_18     // 使能引脚 
-#define M3_STEP_GPIO GPIO_NUM_12     // 驱动引脚
-#define M3_DIR_GPIO GPIO_NUM_16     // 方向引脚
+// 直流电机
 
+#define DC0_GPIO_PH 5 // 0-反向 1-正向
+#define DC0_GPIO_EN 6
+
+#define DC1_GPIO_PH 33 // 0-反向 1-正向
+#define DC1_GPIO_EN 34
+
+#define DC0_CHANNEL LEDC_CHANNEL_1
+#define DC1_CHANNEL LEDC_CHANNEL_2
 
 void pwm_init(void);
 
+void set_servo_angle(uint8_t angle);
 void set_motor_direction(float x, float y);
-
-void rotate_to_angle(float target_angle);
-
-void control_gimbal_motor(float angle);
-void control_Pitch_motor(float angle);
 
 #ifdef __cplusplus
 }
 #endif
-
