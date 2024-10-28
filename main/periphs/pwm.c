@@ -1,52 +1,24 @@
 #include "pwm.h"
-#include "math.h"
-#include "esp_log.h"
-#include "stdio.h"
-
-#include "driver/timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "soc/mcpwm_struct.h"
-#include "driver/gpio.h"
-
-#define SERVO_TIMER LEDC_TIMER_0
-#define SEROV_CHANNEL LEDC_CHANNEL_0
-#define SERVO_MAX_PULSE_WIDTH_US 2500 // 最大脉宽
-#define SERVO_MIN_PULSE_WIDTH_US 500  // 最小脉宽
-
-#define DC0_TIMER LEDC_TIMER_1
-
-#define DC0_FREQ_HZ 30 * 1000
-
-#define DC1_TIMER LEDC_TIMER_1
-#define DC1_FREQ_HZ 30 * 1000
-#define DC1_CHANNEL LEDC_CHANNEL_2
 
 void pwm_init(void)
 {
 
-    // 舵机
-    ledc_timer_config_t servo_timer = {
+    ESP_ERROR_CHECK(ledc_timer_config(&(ledc_timer_config_t){
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .duty_resolution = LEDC_TIMER_14_BIT,
         .timer_num = SERVO_TIMER,
         .freq_hz = SERVO_FREQ_HZ,
-        .clk_cfg = LEDC_AUTO_CLK};
-    ESP_ERROR_CHECK(ledc_timer_config(&servo_timer));
+        .clk_cfg = LEDC_AUTO_CLK}));
 
-    ledc_channel_config_t servo_channel = {
-        .speed_mode = LEDC_LOW_SPEED_MODE,
-        .channel = SEROV_CHANNEL,
-        .timer_sel = SERVO_TIMER,
-        .intr_type = LEDC_INTR_DISABLE,
+    ESP_ERROR_CHECK(ledc_channel_config(&(ledc_channel_config_t){
         .gpio_num = SERVO_GPIO,
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel = SERVO_CHANNEL,
+        .timer_sel = SERVO_TIMER,
         .duty = 0,
-        .hpoint = 0};
-    ESP_ERROR_CHECK(ledc_channel_config(&servo_channel));
+        .hpoint = 0}));
 
-    ESP_ERROR_CHECK((ledc_stop(LEDC_LOW_SPEED_MODE, SEROV_CHANNEL, 0)));
-
-    // 直流电机
+    // 直流配置
     gpio_config_t DC_conf = {
         .intr_type = GPIO_INTR_DISABLE,
         .mode = GPIO_MODE_OUTPUT,
@@ -135,6 +107,18 @@ void set_motor_speed_and_direction(int16_t left_speed, int16_t right_speed)
     ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, DC1_CHANNEL));
 }
 
+void set_motor_direction(float x, float y)
+{
+
+    float left_wheel_velocity = y + x;
+    float right_wheel_velocity = y - x;
+
+    left_wheel_velocity = fmax(-2047.0f, fmin(2047.f, left_wheel_velocity * 2047.0f));
+    right_wheel_velocity = fmax(-2047.0f, fmin(2047.f, right_wheel_velocity * 2047.0f));
+
+    set_motor_speed_and_direction(left_wheel_velocity, right_wheel_velocity);
+}
+
 // 设置舵机角度的函数
 void set_servo_angle(uint8_t angle)
 {
@@ -149,19 +133,6 @@ void set_servo_angle(uint8_t angle)
     // 如果 PWM 输出反向，调整占空比
     uint32_t max_duty = (1 << LEDC_TIMER_14_BIT) - 1;
     uint32_t reversed_duty = max_duty - duty;
-
-    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, SEROV_CHANNEL, reversed_duty));
-    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, SEROV_CHANNEL));
-}
-
-void set_motor_direction(float x, float y)
-{
-
-    float left_wheel_velocity = y + x;
-    float right_wheel_velocity = y - x;
-
-    left_wheel_velocity = fmax(-2047.0f, fmin(2047.f, left_wheel_velocity * 2047.0f));
-    right_wheel_velocity = fmax(-2047.0f, fmin(2047.f, right_wheel_velocity * 2047.0f));
-
-    set_motor_speed_and_direction(left_wheel_velocity, right_wheel_velocity);
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, SERVO_CHANNEL, reversed_duty);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, SERVO_CHANNEL);
 }

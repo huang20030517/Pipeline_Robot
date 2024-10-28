@@ -45,7 +45,12 @@
         "stdint.h": "c",
         "led.h": "c",
         "pcnt.h": "c",
-        "i2c.h": "c"
+        "i2c.h": "c",
+        "gptimer.h": "c"
     },
-    "idf.gitPathWin": "C:\\Users\\huang\\.espressif\\tools\\idf-git\\2.39.2\\cmd\\git.exe"
+    "idf.gitPathWin": "C:\\Users\\huang\\.espressif\\tools\\idf-git\\2.39.2\\cmd\\git.exe",
+    "cSpell.words": [
+        "deviceid",
+        "SCLK"
+    ]
 }

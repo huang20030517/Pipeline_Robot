@@ -29,7 +29,7 @@ typedef struct
 } RC_t;
 
 typedef struct
-{
+    {
 
     // 遥控器操纵杆的规范化值 (-1.0 ~ 1.0)
     float leftX; // 遥控器左手 x 轴的规范化值 (-1 ~ 1)

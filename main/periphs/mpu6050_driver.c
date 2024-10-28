@@ -6,11 +6,6 @@
 #include "esp_system.h"
 #include "esp_log.h"
 
-#define I2C_MASTER_SCL_IO 17      /*!< gpio number for I2C master clock */
-#define I2C_MASTER_SDA_IO 18      /*!< gpio number for I2C master data  */
-#define I2C_MASTER_NUM I2C_NUM_0  /*!< I2C port number for master dev */
-#define I2C_MASTER_FREQ_HZ 100000 /*!< I2C master clock frequency */
-
 mpu6050_handle_t mpu6050 = NULL;
 
 /**

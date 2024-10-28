@@ -1,69 +1,57 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C6 | ESP32-H2 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- |
+# 自适应管道微型巡检机器人项目文档
 
-# Blink Example
+## 1. 项目概述
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+本项目为参加**第十九届"挑战杯"全国大学生课外学术科技作品竞赛'揭榜挂帅'专项赛**而开发，已成功晋级**国赛阶段**。我们设计的机器人采用**磁吸附履带**，能够在复杂管道内自主巡检，结合**多传感器融合、实时任务调度和智能通信**，实现精准检测与高效控制。我们对项目充满信心，目标是冲击**国赛一等奖**。
 
-This example demonstrates how to blink a LED by using the GPIO driver or using the [led_strip](https://components.espressif.com/component/espressif/led_strip) library if the LED is addressable e.g. [WS2812](https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf). The `led_strip` library is installed via [component manager](main/idf_component.yml).
+## 2. 项目背景
 
-## How to Use Example
+管道系统在**城市供水、天然气输送和工业生产**等领域至关重要。传统巡检方式效率低、成本高，且需拆解设备。我们的智能巡检机器人实现了**非破坏性检测与远程控制**，为管道系统的高效维护提供创新解决方案。
 
-Before project configuration and build, be sure to set the correct chip target using `idf.py set-target <chip_name>`.
+## 3. 项目目标
 
-### Hardware Required
+- **多传感器融合与精准导航**：集成MPU6050陀螺仪、编码器、高清摄像头，实现姿态解算与实时位置跟踪。
+- **USB CDC 实时通信与远程控制**：构建稳定通信链路，确保与手机无缝交互与数据传输。
+- **云台控制与全面巡检**：灵活调整摄像头角度，实现巡检区域全面覆盖。
+- **模块化嵌套结构设计**：提升系统扩展性与稳定性，确保快速迭代与优化。
 
-* A development board with normal LED or addressable LED on-board (e.g., ESP32-S3-DevKitC, ESP32-C6-DevKitC etc.)
-* A USB cable for Power supply and programming
+## 4. 系统架构
 
-See [Development Boards](https://www.espressif.com/en/products/devkits) for more information about it.
+### 硬件架构
 
-### Configure the Project
+- **驱动系统**：磁吸附履带确保机器人在管道内平稳附着与移动。
+- **传感器系统**：通过MPU6050解算Pitch、Roll，结合编码器计算线速度，实现精准导航。
+- **通信模块**：ESP32-S3实现USB CDC数据传输，支持远程指令与实时反馈。
+- **云台系统**：调整摄像头角度，实现复杂管道内全面监测。
 
-Open the project configuration menu (`idf.py menuconfig`).
+### 软件架构
 
-In the `Example Configuration` menu:
+- **实时任务管理与FreeRTOS**：基于FreeRTOS设计任务调度，确保各模块高效协同工作。
+- **低通滤波与数据融合**：消除传感器数据噪声，提升姿态解算精度。
+- **消息队列与归一化处理**：优化USB CDC通信，提高数据传输效率与一致性。
+- **模块化嵌套设计**：实现系统解耦，增强维护性与扩展性。
 
-* Select the LED type in the `Blink LED type` option.
-  * Use `GPIO` for regular LED
-  * Use `LED strip` for addressable LED
-* If the LED type is `LED strip`, select the backend peripheral
-  * `RMT` is only available for ESP targets with RMT peripheral supported
-  * `SPI` is available for all ESP targets
-* Set the GPIO number used for the signal in the `Blink GPIO number` option.
-* Set the blinking period in the `Blink period in ms` option.
+## 5. 个人贡献：ESP32-S3 全栈开发与系统集成
 
-### Build and Flash
+在本项目中，我**独自负责了ESP32-S3的开发与系统集成**，从底层驱动到应用逻辑全栈覆盖，确保系统高效稳定。
 
-Run `idf.py -p PORT flash monitor` to build, flash and monitor the project.
+### 核心技术贡献
 
-(To exit the serial monitor, type ``Ctrl-]``.)
+1. **多传感器融合与姿态解算**：精准集成MPU6050陀螺仪与编码器，实现高精度Pitch、Roll解算与线速度计算。
+2. **实时任务管理与FreeRTOS优化**：采用FreeRTOS实现多任务调度与同步，提高系统响应速度与稳定性。实现陀螺仪数据低通滤波，增强导航鲁棒性。
+3. **USB CDC通信与消息队列设计**：基于USB CDC构建高效数据通信架构，使用消息队列与归一化处理确保多线程数据一致性。
+4. **云台控制与多角度监控**：开发云台控制系统，实现摄像头角度精确控制，确保巡检区域全面覆盖。
+5. **模块化嵌套框架设计**：构建模块化嵌套结构，实现系统功能解耦与高效协同，提高可维护性与可扩展性。
 
-See the [Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/latest/get-started/index.html) for full steps to configure and use ESP-IDF to build projects.
+## 6. 项目亮点
 
-## Example Output
+- **多传感器融合与高精度导航**：结合陀螺仪与编码器，实现精准位置跟踪与姿态控制。
+- **实时任务调度与系统鲁棒性**：通过FreeRTOS实现多任务管理，确保复杂场景下高稳定性。
+- **高效通信与远程控制**：通过USB CDC实现数据传输与远程控制，保证巡检实时性。
+- **模块化设计与系统扩展**：模块化嵌套结构确保系统快速迭代与灵活扩展。
 
-As you run the example, you will see the LED blinking, according to the previously defined period. For the addressable LED, you can also change the LED color by setting the `led_strip_set_pixel(led_strip, 0, 16, 16, 16);` (LED Strip, Pixel Number, Red, Green, Blue) with values from 0 to 255 in the [source file](main/blink_example_main.c).
+## 7. 小结：全力冲击国赛一等奖
 
-```text
-I (315) example: Example configured to blink addressable LED!
-I (325) example: Turning the LED OFF!
-I (1325) example: Turning the LED ON!
-I (2325) example: Turning the LED OFF!
-I (3325) example: Turning the LED ON!
-I (4325) example: Turning the LED OFF!
-I (5325) example: Turning the LED ON!
-I (6325) example: Turning the LED OFF!
-I (7325) example: Turning the LED ON!
-I (8325) example: Turning the LED OFF!
-```
+我们对这款管道巡检机器人的性能和创新设计充满信心，已为**挑战杯国赛一等奖**做好充分准备。
 
-Note: The color order could be different according to the LED model.
-
-The pixel number indicates the pixel position in the LED strip. For a single LED, use 0.
-
-## Troubleshooting
-
-* If the LED isn't blinking, check the GPIO or the LED type selection in the `Example Configuration` menu.
-
-For any technical queries, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub. We will get back to you soon.
+通过**独立开发ESP32-S3全栈系统**，实现了多传感器融合、FreeRTOS任务调度、USB CDC通信与云台控制，全面支撑项目核心功能。系统采用**模块化设计与实时任务管理**，保证复杂环境下的高稳定性与可扩展性。未来，我们将持续优化性能，确保机器人在更多工程场景中的卓越表现。
