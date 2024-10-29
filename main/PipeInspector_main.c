@@ -103,9 +103,9 @@ void motor_control_task(void *parameters)
     while (1)
     {
         // 控制电机
-        set_servo_angle(100); 
+        set_servo_angle(rc_data.Pitch);
 
-        // set_motor_direction(0, 0.5);
+        set_motor_direction(RC_Normalized_data.leftX, RC_Normalized_data.leftY);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
@@ -119,11 +119,11 @@ void app_main(void)
     assert(app_queue);
 
     // xTaskCreate(usb_data_task, "USB task", 4096, NULL, 5, NULL);
-    
+
     RC_Normalized_data.leftX = 0;
     RC_Normalized_data.leftY = 0;
     RC_Normalized_data.Pitch = 0;
-    
+
     xTaskCreate(motor_control_task, "motor control task", 8192, NULL, 5, NULL);
     xTaskCreate(encoder_read_task, "encoder read task", 4096, NULL, 4, NULL);
     xTaskCreate(mpu6050_read_task, "mpu6050 read task", 8192, NULL, 4, NULL);
