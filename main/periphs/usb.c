@@ -4,8 +4,8 @@
 #include "esp_log.h"
 
 uint8_t rx_buf[CONFIG_TINYUSB_CDC_RX_BUFSIZE + 1];
-QueueHandle_t app_queue;
-app_message_t msg;
+extern QueueHandle_t app_queue;
+extern app_message_t msg;
 
 /**
  * @brief CDC device RX callback
@@ -130,14 +130,40 @@ void init_usb_device(void)
     ESP_LOGI(TAG, "USB 初始化已经完成");
 }
 
-// uint16_t fletcher16(uint8_t *data, int count) {
-//     uint16_t sum1 = 0;
-//     uint16_t sum2 = 0;
+void camera_view_direction_init(void)
+{
+    gpio_config_t io_conf = {
+        .intr_type = GPIO_INTR_DISABLE,
+        .mode = GPIO_MODE_OUTPUT,
+        .pin_bit_mask = (1ULL << CAMERA_PB_GPIO),
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .pull_up_en = GPIO_PULLUP_ENABLE};
 
-//     for (int i = 0; i < count; i++) {
-//         sum1 = (sum1 + data[i]) % 255;
-//         sum2 = (sum2 + sum1) % 255;
-//     }
+    gpio_config(&io_conf);
+    gpio_set_level(CAMERA_PB_GPIO, 1);
+}
 
-//     return (sum2 << 8) | sum1;
-// }
+void set_camera_view(bool toggle_view)
+{
+    // static bool current_view = 0;
+
+    // if (toggle_view != current_view)
+    // {
+    //     current_view = toggle_view;
+
+    gpio_set_level(CAMERA_PB_GPIO, toggle_view);
+    // }
+}
+
+esp_err_t usb_send_data(const uint8_t *data, size_t len)
+{
+    // 将数据写入 CDC 的写入队列
+    size_t bytes_queued = tinyusb_cdcacm_write_queue(TINYUSB_CDC_ACM_0, data, len);
+    if (bytes_queued != len)
+    {
+        return ESP_FAIL;
+    }
+
+    // 将队列中的数据发送出去
+    return tinyusb_cdcacm_write_flush(TINYUSB_CDC_ACM_0, portMAX_DELAY);
+}

@@ -14,7 +14,7 @@
     "idf.pythonBinPathWin": "C:\\Users\\huang\\.espressif\\python_env\\idf5.2_py3.11_env\\Scripts\\python.exe",
     "idf.toolsPathWin": "C:\\Users\\huang\\.espressif",
     "idf.flashType": "UART",
-    "idf.portWin": "COM16",
+    "idf.portWin": "COM24",
     "files.associations": {
         "tusb_cdc_acm.h": "c",
         "cstdlib": "c",
