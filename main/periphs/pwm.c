@@ -156,6 +156,12 @@ void set_motor_direction(float x, float y)
 /// @param angle 0 到 100 范围内
 void set_servo_angle(uint8_t angle)
 {
+    // 45 90 115
+    if (angle >= 115)
+        angle = 115;
+    else if (angle <= 45)
+        angle = 45;
+
     angle = clamp(angle, 0, 180);
 
     // 计算对应的脉宽

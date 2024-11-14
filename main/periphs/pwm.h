@@ -20,8 +20,7 @@ extern "C"
 // 舵机配置
 #define SERVO_GPIO 9                  // 舵机连接的 GPIO 引脚
 #define SERVO_FREQ_HZ 50              // 舵机频率 50Hz
-#define SERVO_MIN_ANGLE -20           // 最小角度
-#define SERVO_MAX_ANGLE 50            // 最大角度
+
 #define SERVO_TIMER LEDC_TIMER_0      // 使用 LEDC_TIMER_0
 #define SERVO_CHANNEL LEDC_CHANNEL_0  // 使用通道 0
 #define SERVO_MAX_PULSE_WIDTH_US 2500 // 最大脉宽

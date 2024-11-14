@@ -18,7 +18,7 @@ typedef struct
 
 typedef struct
 {
-    uint8_t buf[12];
+    uint8_t buf[20];
     size_t buf_len;
 } app_send_message_t;
 

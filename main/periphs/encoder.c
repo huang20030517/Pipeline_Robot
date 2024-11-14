@@ -1,5 +1,6 @@
 #include "periphs/encoder.h"
 
+
 void encoder_init(void)
 {
 

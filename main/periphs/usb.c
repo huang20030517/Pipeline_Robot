@@ -82,7 +82,7 @@ void init_usb_device(void)
         .iProduct = 0x02,          // 产品字符串描述符的索引号
         .iSerialNumber = 0x03,     // 序列号字符串描述符的索引号
         .bNumConfigurations = 0x01 // 仅有一个配置
-    }; // 4660 22136 2002
+    }; 
 
     const tinyusb_config_t tusb_cfg = {
         .device_descriptor = &device_descriptor,
@@ -145,14 +145,16 @@ void camera_view_direction_init(void)
 
 void set_camera_view(bool toggle_view)
 {
-    // static bool current_view = 0;
+    static uint8_t v = 0;
 
-    // if (toggle_view != current_view)
-    // {
-    //     current_view = toggle_view;
+    if (v != toggle_view)
+    {
+        gpio_set_level(CAMERA_PB_GPIO, toggle_view);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        gpio_set_level(CAMERA_PB_GPIO, 1);
+    }
 
-    gpio_set_level(CAMERA_PB_GPIO, toggle_view);
-    // }
+    v = toggle_view;
 }
 
 esp_err_t usb_send_data(const uint8_t *data, size_t len)

@@ -10,15 +10,23 @@ extern "C"
 {
 #endif
 
-#define COUNTER_MAX_LIMIT 14420  // 两圈的脉冲数
-#define COUNTER_MIN_LIMIT -14420 // 负两圈的脉冲数
 
-// 减速比: 1030
+
 // 脉冲每圈 (PPR): 7
 
+// 减速比: 1030
+// #define COUNTER_MAX_LIMIT 14420  // 两圈的脉冲数
+// #define COUNTER_MIN_LIMIT -14420 // 负两圈的脉冲数
+
+// 减速比: 603
+#define COUNTER_MAX_LIMIT 8442  // 两圈的脉冲数
+#define COUNTER_MIN_LIMIT -8442 // 负两圈的脉冲数
+
+#define WHEEL_DIAMETER 2.3f
+
 // 编码器 GPIO 引脚定义
-#define ENCODER1_A_GPIO 3
-#define ENCODER1_B_GPIO 4
+#define ENCODER1_A_GPIO 4
+#define ENCODER1_B_GPIO 3
 #define ENCODER2_A_GPIO 5
 #define ENCODER2_B_GPIO 6
 
