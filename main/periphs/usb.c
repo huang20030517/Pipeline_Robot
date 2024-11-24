@@ -3,30 +3,36 @@
 #include "tusb_cdc_acm.h"
 #include "esp_log.h"
 
-uint8_t rx_buf[CONFIG_TINYUSB_CDC_RX_BUFSIZE + 1];
-extern QueueHandle_t app_queue;
-extern app_message_t msg;
+/// @brief 错误检查并打印日志
+#define ESP_ERROR_CHECK_WITH_LOG(x)                                                                                          \
+    do                                                                                                                       \
+    {                                                                                                                        \
+        esp_err_t __err_rc = (x);                                                                                            \
+        if (__err_rc != ESP_OK)                                                                                              \
+        {                                                                                                                    \
+            ESP_LOGE("USB", "ESP_ERROR at %s:%d, code: 0x%x (%s)", __FILE__, __LINE__, __err_rc, esp_err_to_name(__err_rc)); \
+        }                                                                                                                    \
+    } while (0)
+
+static const char *TAG = "USB";
+uint8_t rx_buf[CONFIG_TINYUSB_CDC_RX_BUFSIZE + 1]; ///< CDC 数据接收缓冲区
+
+extern QueueHandle_t app_queue; ///< 全局队列句柄
+extern app_message_t msg;       ///< 全局消息结构
 
 /**
- * @brief CDC device RX callback
- *
- * CDC device signals, that new data were received
- *
- * @param[in] itf   CDC device index
- * @param[in] event CDC event type
+ * @brief CDC 设备数据接收回调
+ * @param[in] itf   CDC 设备索引
+ * @param[in] event CDC 事件类型
  */
 void tinyusb_cdc_rx_callback(int itf, cdcacm_event_t *event)
 {
-    /* initialization */
     size_t rx_size = 0;
 
-    static const char *TAG = "USB";
-
-    /* read */
+    // 从 CDC 设备读取数据
     esp_err_t ret = tinyusb_cdcacm_read(itf, rx_buf, CONFIG_TINYUSB_CDC_RX_BUFSIZE, &rx_size);
     if (ret == ESP_OK)
     {
-
         app_message_t tx_msg = {
             .buf_len = rx_size,
             .itf = itf,
@@ -42,48 +48,43 @@ void tinyusb_cdc_rx_callback(int itf, cdcacm_event_t *event)
 }
 
 /**
- * @brief CDC device line change callback
- *
- * CDC device signals, that the DTR, RTS states changed
- *
- * @param[in] itf   CDC device index
- * @param[in] event CDC event type
+ * @brief CDC 设备线路状态变化回调
+ * @param[in] itf   CDC 设备索引
+ * @param[in] event CDC 事件类型
  */
 void tinyusb_cdc_line_state_changed_callback(int itf, cdcacm_event_t *event)
 {
-    static const char *TAG = "USB";
-
     int dtr = event->line_state_changed_data.dtr;
     int rts = event->line_state_changed_data.rts;
-    ESP_LOGI(TAG, "通道 %d 的线路状态发生变化: DTR:%d, RTS:%d", itf, dtr, rts);
+    ESP_LOGI(TAG, "Interface %d Line State Changed: DTR=%d, RTS=%d", itf, dtr, rts);
 }
 
+/**
+ * @brief 初始化 USB 设备
+ */
 void init_usb_device(void)
 {
+    ESP_LOGI(TAG, "Initializing USB device...");
 
-    static const char *TAG = "USB";
-
-    ESP_LOGI(TAG, "正在执行 USB 设备的初始化操作");
-
+    // 设备描述符
     static const tusb_desc_device_t device_descriptor = {
-        .bLength = sizeof(tusb_desc_device_t), // 描述符长度
-        .bDescriptorType = TUSB_DESC_DEVICE,   // 描述符类型为设备描述符
-        .bcdUSB = 0x0200,                      // USB 规范版本 2.0
-        .bDeviceClass = 0x00,                  // 使用接口描述符中的类别信息
+        .bLength = sizeof(tusb_desc_device_t),
+        .bDescriptorType = TUSB_DESC_DEVICE,
+        .bcdUSB = 0x0200,
+        .bDeviceClass = 0x00,
         .bDeviceSubClass = 0x00,
         .bDeviceProtocol = 0x00,
-        .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE, // 端点 0 的最大包大小
+        .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
+        .idVendor = 0x1234,
+        .idProduct = 0x5678,
+        .bcdDevice = 0x0100,
+        .iManufacturer = 0x01,
+        .iProduct = 0x02,
+        .iSerialNumber = 0x03,
+        .bNumConfigurations = 0x01,
+    };
 
-        .idVendor = 0x1234,  // 厂商 ID
-        .idProduct = 0x5678, // 产品 ID
-
-        .bcdDevice = 0x0100,       // 设备版本号 1.00
-        .iManufacturer = 0x01,     // 制造商字符串描述符的索引号
-        .iProduct = 0x02,          // 产品字符串描述符的索引号
-        .iSerialNumber = 0x03,     // 序列号字符串描述符的索引号
-        .bNumConfigurations = 0x01 // 仅有一个配置
-    }; 
-
+    // USB 配置
     const tinyusb_config_t tusb_cfg = {
         .device_descriptor = &device_descriptor,
         .string_descriptor = NULL,
@@ -94,11 +95,11 @@ void init_usb_device(void)
         .qualifier_descriptor = NULL,
 #else
         .configuration_descriptor = NULL,
-#endif // TUD_OPT_HIGH_SPEED
+#endif
     };
 
-    // 安装和初始化 USB 设备驱动程序
-    ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
+    // 安装 USB 驱动程序
+    ESP_ERROR_CHECK_WITH_LOG(tinyusb_driver_install(&tusb_cfg));
 
     // 配置 CDC-ACM
     tinyusb_config_cdcacm_t acm_cfg = {
@@ -107,29 +108,25 @@ void init_usb_device(void)
         .rx_unread_buf_sz = 64,
         .callback_rx = &tinyusb_cdc_rx_callback,
         .callback_rx_wanted_char = NULL,
-        .callback_line_state_changed = NULL,
-        .callback_line_coding_changed = NULL};
+        .callback_line_state_changed = &tinyusb_cdc_line_state_changed_callback,
+        .callback_line_coding_changed = NULL,
+    };
 
-    // 初始化 CDC-ACM 功能
-    ESP_ERROR_CHECK(tusb_cdc_acm_init(&acm_cfg));
-    ESP_ERROR_CHECK(tinyusb_cdcacm_register_callback(
-        TINYUSB_CDC_ACM_0,
-        CDC_EVENT_LINE_STATE_CHANGED,
-        &tinyusb_cdc_line_state_changed_callback));
+    // 初始化第一个 CDC 实例
+    ESP_ERROR_CHECK_WITH_LOG(tusb_cdc_acm_init(&acm_cfg));
 
-    // 判断是否配置了多个 CDC-ACM 虚拟串口
 #if (CONFIG_TINYUSB_CDC_COUNT > 1)
+    // 如果启用了多个 CDC 实例，初始化第二个实例
     acm_cfg.cdc_port = TINYUSB_CDC_ACM_1;
-    ESP_ERROR_CHECK(tusb_cdc_acm_init(&acm_cfg));
-    ESP_ERROR_CHECK(tinyusb_cdcacm_register_callback(
-        TINYUSB_CDC_ACM_1,
-        CDC_EVENT_LINE_STATE_CHANGED,
-        &tinyusb_cdc_line_state_changed_callback));
+    ESP_ERROR_CHECK_WITH_LOG(tusb_cdc_acm_init(&acm_cfg));
 #endif
 
-    ESP_LOGI(TAG, "USB 初始化已经完成");
+    ESP_LOGI(TAG, "USB device initialized.");
 }
 
+/**
+ * @brief 初始化摄像头方向控制
+ */
 void camera_view_direction_init(void)
 {
     gpio_config_t io_conf = {
@@ -137,12 +134,17 @@ void camera_view_direction_init(void)
         .mode = GPIO_MODE_OUTPUT,
         .pin_bit_mask = (1ULL << CAMERA_PB_GPIO),
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .pull_up_en = GPIO_PULLUP_ENABLE};
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+    };
 
-    gpio_config(&io_conf);
+    ESP_ERROR_CHECK_WITH_LOG(gpio_config(&io_conf));
     gpio_set_level(CAMERA_PB_GPIO, 1);
 }
 
+/**
+ * @brief 设置摄像头方向
+ * @param toggle_view 切换方向的布尔值
+ */
 void set_camera_view(bool toggle_view)
 {
     static uint8_t v = 0;
@@ -157,15 +159,19 @@ void set_camera_view(bool toggle_view)
     v = toggle_view;
 }
 
+/**
+ * @brief 发送数据到 USB CDC
+ * @param[in] data 数据缓冲区指针
+ * @param[in] len  数据长度
+ * @return esp_err_t 返回操作结果
+ */
 esp_err_t usb_send_data(const uint8_t *data, size_t len)
 {
-    // 将数据写入 CDC 的写入队列
     size_t bytes_queued = tinyusb_cdcacm_write_queue(TINYUSB_CDC_ACM_0, data, len);
     if (bytes_queued != len)
     {
         return ESP_FAIL;
     }
 
-    // 将队列中的数据发送出去
     return tinyusb_cdcacm_write_flush(TINYUSB_CDC_ACM_0, portMAX_DELAY);
 }
