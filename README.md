@@ -87,8 +87,4 @@ usb_send_data(data, sizeof(data)); // 发送数据到 USB
 | MPU6050 无数据 | I2C 地址错误或连线问题 | 检查传感器连接 |
 | USB 无法通信 | CDC 初始化失败 | 检查 USB 配置和上位机 |
 
----
 
-## **开发者信息**
-
-- **作者**：Huang
